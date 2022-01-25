@@ -141,6 +141,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->has_alarm = 0;
+  p->ticket_passed = 0;
+
   return p;
 }
 
