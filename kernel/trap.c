@@ -33,6 +33,27 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
+
+int page_fault(pagetable_t pagetable, int va) {
+  if (va >= MAXVA)  return -1;
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte == 0) return -1;
+  if ((*pte & PTE_U) == 0 || (*pte & PTE_V) == 0)
+    return -1;
+  *pte |= PTE_W;
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+  uint64 new_pa = (uint64)kalloc();
+  if (new_pa == 0) {
+    printf("kalloc failed\n");
+    return -1;
+  }
+  memmove((void *)new_pa, (const void *)pa, PGSIZE);
+  *pte = PA2PTE(new_pa) | flags;
+  kfree((void *)pa);
+  return 0;
+}
+
 void
 usertrap(void)
 {
@@ -65,6 +86,10 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 0xf) {
+    if (page_fault(p->pagetable, r_stval())) {
+      p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
